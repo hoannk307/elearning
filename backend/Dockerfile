@@ -39,5 +39,5 @@ COPY --from=build /app/package.json ./package.json
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
-EXPOSE 3001
+EXPOSE 3004
 ENTRYPOINT ["./docker-entrypoint.sh"]

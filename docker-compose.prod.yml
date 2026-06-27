@@ -48,26 +48,26 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      PORT: 3001
+      PORT: 3004
       REDIS_HOST: redis
       REDIS_PORT: 6379
       # DATABASE_URL trỏ tới service postgres trong mạng Docker.
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kids_lms}?schema=public
       FRONTEND_URL: ${FRONTEND_URL}
-    # Không publish — Caddy proxy nội bộ tới backend:3001.
+    # Không publish — Caddy proxy nội bộ tới backend:3004.
 
   frontend:
     build:
       context: ./frontend
       args:
-        BACKEND_INTERNAL_URL: http://backend:3001
+        BACKEND_INTERNAL_URL: http://backend:3004
     container_name: kids-lms-frontend
     restart: unless-stopped
     depends_on:
       - backend
     environment:
       NODE_ENV: production
-    # Không publish — Caddy proxy nội bộ tới frontend:3000.
+    # Không publish — Caddy proxy nội bộ tới frontend:3005.
 
   caddy:
     image: caddy:2-alpine
