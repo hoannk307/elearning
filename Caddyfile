@@ -1,0 +1,24 @@
+# Reverse proxy + HTTPS tự động (Let's Encrypt).
+# Đổi "your-domain.com" thành domain thật đã trỏ A record về IP VPS.
+# Email dùng để Let's Encrypt thông báo (tùy chọn nhưng nên có).
+
+{
+	email admin@your-domain.com
+}
+
+your-domain.com {
+	# API → backend NestJS
+	handle /api/* {
+		reverse_proxy backend:3001
+	}
+
+	# Ảnh/file cũ còn phục vụ tĩnh bởi backend (ảnh mới dùng URL R2)
+	handle /uploads/* {
+		reverse_proxy backend:3001
+	}
+
+	# Còn lại → frontend Next.js
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

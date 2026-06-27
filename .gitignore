@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+.next/
+out/
+build/
+
+# Env
+.env
+.env.local
+**/.env
+!**/.env.example
+
+# Uploads (ảnh bài làm, PDF sinh ra)
+uploads/
+backend/uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

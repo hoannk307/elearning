@@ -1,0 +1,91 @@
+# Kids LMS — Stack production cho VPS
+# Khởi động: docker compose -f docker-compose.prod.yml up -d --build
+# Biến môi trường đọc từ file .env cùng thư mục (KHÔNG commit file này).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kids-lms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Thiếu POSTGRES_PASSWORD trong .env}
+      POSTGRES_DB: ${POSTGRES_DB:-kids_lms}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-kids_lms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Không publish ra Internet — chỉ dùng trong mạng nội bộ Docker.
+
+  redis:
+    image: redis:7-alpine
+    container_name: kids-lms-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Không publish port 6379 — chỉ truy cập nội bộ.
+
+  backend:
+    build:
+      context: ./backend
+    container_name: kids-lms-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # DATABASE_URL trỏ tới service postgres trong mạng Docker.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kids_lms}?schema=public
+      FRONTEND_URL: ${FRONTEND_URL}
+    # Không publish — Caddy proxy nội bộ tới backend:3001.
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_INTERNAL_URL: http://backend:3001
+    container_name: kids-lms-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+    # Không publish — Caddy proxy nội bộ tới frontend:3000.
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: kids-lms-caddy
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  caddyconfig:

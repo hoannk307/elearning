@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Force E:\\\\Working\\\\ELearning | Select-Object Name, Length; \"---node---\"; \\(Get-Command node -ErrorAction SilentlyContinue\\).Source; node -v 2>$null; \"---npm---\"; npm -v 2>$null; \"---docker---\"; docker -v 2>$null)",
+      "PowerShell(docker info --format '{{.ServerVersion}}' 2>&1)",
+      "PowerShell(\"---\")",
+      "PowerShell(Get-Process | Where-Object { $_.Name -match 'docker|com.docker|vpnkit|wsl' } | Select-Object Name | Format-Table -AutoSize; \"--- WSL ---\"; wsl --status 2>&1 | Select-Object -First 5)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Select-Object ProcessId, @{n='Cmd';e={$_.CommandLine.Substring\\(0,[Math]::Min\\(100,$_.CommandLine.Length\\)\\)}} | Format-Table -AutoSize)",
+      "PowerShell(Stop-Process -Id 39448,36084,11860 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\")"
+    ]
+  }
+}

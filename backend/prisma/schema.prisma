@@ -1,0 +1,280 @@
+// Kids LMS — Prisma schema (Phase 1)
+// Thiết kế theo bản Phân tích v3:
+//   - Không quản lý theo học kỳ (Term/Week).
+//   - Bài kiểm tra (Exam) là bất thường, tổng hợp từ các Session đã học.
+//   - Đánh giá dựa trên điểm bài tập từng buổi (ExerciseResult) + các đợt kiểm tra (ExamResult).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── ENUMS ───────────────────────────
+
+enum SessionStatus {
+  PENDING // chưa học
+  DONE // đã học xong
+}
+
+enum CurriculumStatus {
+  DRAFT // vừa nhập text, chưa xử lý
+  PARSING // AI đang tách thành các buổi học
+  PARSED // đã tạo xong Sessions
+  FAILED // AI parse lỗi
+}
+
+enum GenStatus {
+  PENDING // chờ tạo
+  GENERATING // AI đang tạo
+  READY // đã tạo xong
+  FAILED // tạo lỗi
+}
+
+enum ExamKind {
+  MIDTERM // giữa kỳ
+  FINAL // cuối kỳ
+  CUSTOM // tổng hợp bất thường (mặc định)
+}
+
+enum Role {
+  PARENT // phụ huynh — quản lý học sinh của mình
+  STUDENT // học sinh — chỉ học chương trình của mình
+}
+
+// ─────────────────────────── MODELS ───────────────────────────
+
+/// Cài đặt dạng key-value (vd: model AI mặc định của app)
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+/// Phụ huynh — tài khoản đăng nhập, mỗi PH quản lý học sinh của mình
+model Parent {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  email        String?  @unique // dùng để liên hệ / khôi phục
+  phone        String? // số điện thoại liên hệ
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Cấu hình số câu khi AI tạo bài tập / đề kiểm tra (phụ huynh chỉnh trong Cài đặt)
+  exerciseMcCount    Int @default(15) @map("exercise_mc_count") // số câu trắc nghiệm/bài tập
+  exerciseEssayCount Int @default(5) @map("exercise_essay_count") // số câu tự luận/bài tập
+  examMcCount        Int @default(10) @map("exam_mc_count") // số câu trắc nghiệm/đề kiểm tra
+  examEssayCount     Int @default(3) @map("exam_essay_count") // số câu tự luận/đề kiểm tra
+
+  students Student[]
+
+  @@map("parents")
+}
+
+/// Học sinh — đồng thời là tài khoản đăng nhập (username/password do PH cấp)
+model Student {
+  id           String   @id @default(cuid())
+  parentId     String   @map("parent_id")
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  gradeLevel   String   @map("grade_level") // "Lớp 3", "Lớp 7"... — nhập trên UI
+  age          Int?
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  parent          Parent           @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  subjects        Subject[]
+  sessions        Session[]
+  exercises       Exercise[]
+  exerciseResults ExerciseResult[]
+  exams           Exam[]
+  examResults     ExamResult[]
+
+  @@index([parentId])
+  @@map("students")
+}
+
+/// Môn học (gắn với 1 học sinh)
+model Subject {
+  id          String   @id @default(cuid())
+  studentId   String   @map("student_id")
+  name        String // "Toán", "Tiếng Anh"...
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  curriculums Curriculum[]
+  sessions    Session[]
+  exams       Exam[]
+
+  @@index([studentId])
+  @@map("subjects")
+}
+
+/// Chương trình học — phụ huynh paste text, AI tách ra Sessions
+model Curriculum {
+  id        String           @id @default(cuid())
+  subjectId String           @map("subject_id")
+  rawText   String           @map("raw_text") // toàn bộ nội dung paste vào
+  status    CurriculumStatus @default(DRAFT)
+  aiParsed  Boolean          @default(false) @map("ai_parsed")
+  error     String? // thông báo lỗi nếu parse thất bại
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  subject  Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  @@index([subjectId])
+  @@map("curriculums")
+}
+
+/// Buổi học — AI parse từ Curriculum
+model Session {
+  id           String        @id @default(cuid())
+  curriculumId String        @map("curriculum_id")
+  subjectId    String        @map("subject_id")
+  studentId    String        @map("student_id")
+  title        String // "Bài 5: Phân số"
+  objective    String? // mục tiêu buổi học
+  content      String? // nội dung chính (text)
+  orderIndex   Int           @map("order_index") // thứ tự buổi
+  youtubeUrl   String?       @map("youtube_url") // phụ huynh gán sau
+  status       SessionStatus @default(PENDING)
+  notes        String? // ghi chú tiến độ
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  curriculum Curriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  subject    Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  exercises Exercise[]
+  exams     Exam[]         @relation("ExamSessions") // các đề thi tổng hợp buổi này
+  videos    SessionVideo[]
+
+  @@index([curriculumId])
+  @@index([subjectId])
+  @@index([studentId])
+  @@map("sessions")
+}
+
+/// Link video cho buổi học — mỗi buổi có thể gắn nhiều link
+model SessionVideo {
+  id         String   @id @default(cuid())
+  sessionId  String   @map("session_id")
+  url        String
+  label      String? // nhãn tuỳ chọn cho link
+  orderIndex Int      @default(0) @map("order_index")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("session_videos")
+}
+
+/// Bài tập — AI tạo cho từng buổi học
+model Exercise {
+  id            String    @id @default(cuid())
+  sessionId     String    @map("session_id")
+  studentId     String    @map("student_id")
+  title         String?
+  contentJson   Json      @map("content_json") // [{ q, type, options?, answer }]
+  answerKeyJson Json?     @map("answer_key_json") // đáp án + lời giải
+  pdfUrl        String?   @map("pdf_url") // file PDF đã render
+  status        GenStatus @default(PENDING)
+  error         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  session Session          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  results ExerciseResult[]
+
+  @@index([sessionId])
+  @@index([studentId])
+  @@map("exercises")
+}
+
+/// Điểm bài tập từng buổi
+model ExerciseResult {
+  id         String   @id @default(cuid())
+  exerciseId String   @map("exercise_id")
+  sessionId  String   @map("session_id") // denormalize để query báo cáo nhanh
+  studentId  String   @map("student_id")
+  score      Float // điểm (thang điểm tùy bài)
+  maxScore   Float    @default(10) @map("max_score")
+  note       String?
+  answersJson Json?   @map("answers_json") // đáp án học sinh gõ khi làm trên máy
+  detailJson  Json?   @map("detail_json") // điểm + nhận xét từng câu (AI chấm)
+  aiFeedback  String? @map("ai_feedback") // nhận xét tổng hợp của AI
+  source      String? // "PARENT_MANUAL" | "STUDENT_AI"
+  gradedAt   DateTime @default(now()) @map("graded_at")
+
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([exerciseId])
+  @@index([sessionId])
+  @@index([studentId])
+  @@map("exercise_results")
+}
+
+/// Đề kiểm tra — tổng hợp bất thường từ các Session đã học
+model Exam {
+  id            String    @id @default(cuid())
+  studentId     String    @map("student_id")
+  subjectId     String    @map("subject_id")
+  title         String // "Kiểm tra tổng hợp #1"
+  kind          ExamKind  @default(CUSTOM)
+  contentJson   Json      @map("content_json") // { multipleChoice: [...], essay: [...] }
+  answerKeyJson Json      @map("answer_key_json") // đáp án + thang điểm
+  totalPoints   Float     @default(10) @map("total_points")
+  examPdfUrl    String?   @map("exam_pdf_url") // bản thi (không đáp án)
+  answerPdfUrl  String?   @map("answer_pdf_url") // bản đáp án cho phụ huynh
+  status        GenStatus @default(PENDING)
+  error         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  student  Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject  Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  sessions Session[]    @relation("ExamSessions") // các buổi được tổng hợp vào đề
+  results  ExamResult[]
+
+  @@index([studentId])
+  @@index([subjectId])
+  @@map("exams")
+}
+
+/// Kết quả chấm bài — 1 Exam có thể chấm nhiều lần
+model ExamResult {
+  id               String   @id @default(cuid())
+  examId           String   @map("exam_id")
+  studentId        String   @map("student_id")
+  imageUrls        String[] @map("image_urls") // ảnh bài làm đã upload
+  scoreTotal       Float    @map("score_total")
+  maxScore         Float    @default(10) @map("max_score")
+  scoreDetailJson  Json     @map("score_detail_json") // điểm từng câu
+  presentationNote String?  @map("presentation_note") // nhận xét trình bày (phần tự luận)
+  aiFeedback       String?  @map("ai_feedback") // nhận xét tổng hợp
+  takenAt          DateTime @default(now()) @map("taken_at")
+
+  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([examId])
+  @@index([studentId])
+  @@map("exam_results")
+}
