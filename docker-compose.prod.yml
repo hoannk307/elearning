@@ -81,8 +81,9 @@ services:
       - frontend
       - backend
     ports:
-      - "80:80"
-      - "443:443"
+      # 80/443 đã thuộc stack batdongsan, nên app này chạy ở cổng 8080 (HTTP).
+      # Truy cập: http://elearning.nhatranglands.vn:8080
+      - "8080:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data

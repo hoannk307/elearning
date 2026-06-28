@@ -1,12 +1,8 @@
-# Reverse proxy + HTTPS tự động (Let's Encrypt).
-# Đổi "your-domain.com" thành domain thật đã trỏ A record về IP VPS.
-# Email dùng để Let's Encrypt thông báo (tùy chọn nhưng nên có).
+# Caddy chỉ làm reverse proxy nội bộ qua HTTP (cổng 80 trong container,
+# map ra 127.0.0.1:8080 trên host). HTTPS do nginx/apache phía trước lo.
+# KHÔNG dùng tên domain ở đây để Caddy không cố xin chứng chỉ Let's Encrypt.
 
-{
-	email admin@nhatranglands.vn
-}
-
-elearning.nhatranglands.vn {
+:80 {
 	# API → backend NestJS
 	handle /api/* {
 		reverse_proxy backend:3004
