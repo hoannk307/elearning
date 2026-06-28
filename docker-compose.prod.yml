@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Thiếu POSTGRES_PASSWORD trong .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgresPassword}
       POSTGRES_DB: ${POSTGRES_DB:-kids_lms}
     volumes:
       - pgdata:/var/lib/postgresql/data
