@@ -7,7 +7,7 @@ deploy tự động qua **GitHub Actions (SSH)**, lưu file lên **Cloudflare R2
 
 ## 1. Chuẩn bị Cloudflare R2
 
-1. Cloudflare Dashboard → **R2** → tạo bucket (vd `batdongsan`).
+1. Cloudflare Dashboard → **R2** → tạo bucket (vd `elearning`).
 2. **Manage R2 API Tokens** → tạo token quyền *Object Read & Write* → lấy `Access Key ID` + `Secret Access Key`.
 3. Để hiển thị ảnh công khai, chọn 1 trong 2:
    - Bật **Public Development URL** (r2.dev) cho bucket, rồi đặt `R2_PUBLIC_BASE_URL` = URL r2.dev đó; **hoặc**
@@ -26,7 +26,7 @@ git init
 git add .
 git commit -m "Initial deployable version"
 git branch -M main
-git remote add origin git@github.com:<user>/<repo>.git
+git remote add origin https://github.com/hoannk307/elearning.git
 git push -u origin main
 ```
 
