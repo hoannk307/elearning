@@ -5,7 +5,8 @@
 //   - Đánh giá dựa trên điểm bài tập từng buổi (ExerciseResult) + các đợt kiểm tra (ExamResult).
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
