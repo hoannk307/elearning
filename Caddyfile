@@ -3,10 +3,10 @@
 # Email dùng để Let's Encrypt thông báo (tùy chọn nhưng nên có).
 
 {
-	email admin@your-domain.com
+	email admin@nhatranglands.vn
 }
 
-your-domain.com {
+elearning.nhatranglands.vn {
 	# API → backend NestJS
 	handle /api/* {
 		reverse_proxy backend:3004

@@ -1,7 +1,11 @@
 # Triển khai E-Learning lên VPS Ubuntu
 
 Hệ thống chạy bằng **Docker Compose** (Postgres + Redis + Backend NestJS + Frontend Next.js + Caddy),
-deploy tự động qua **GitHub Actions (SSH)**, lưu file lên **Cloudflare R2**.
+lưu file lên **Cloudflare R2**.
+
+**Kiến trúc CI/CD:** GitHub Actions **build image trên runner → push lên GHCR**
+(GitHub Container Registry), sau đó SSH vào VPS để **`docker compose pull` + `up`**.
+VPS **không build, không cần source code, không cần git** — chỉ cần Docker + file `.env`.
 
 ---
 
@@ -36,36 +40,33 @@ git push -u origin main
 
 ## 3. Chuẩn bị VPS Ubuntu (làm 1 lần)
 
+VPS chỉ cần **Docker**, thư mục `/opt/elearning` và file **`.env`**. Không cần clone code,
+không cần git, không build gì cả — `docker-compose.prod.yml` và `Caddyfile` sẽ được
+GitHub Actions tự copy lên mỗi lần deploy.
+
 ```bash
 # Cài Docker + compose plugin
 curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER        # đăng xuất/đăng nhập lại để có hiệu lực
 
-# Lấy code
-sudo mkdir -p /opt/elearning && sudo chown $USER /opt/elearning
-git clone git@github.com:<user>/<repo>.git /opt/elearning
+# Tạo thư mục chứa cấu hình + .env
+mkdir -p /opt/elearning
 cd /opt/elearning
 
-# Tạo file .env thật từ mẫu
-cp .env.prod.example .env
-nano .env        # điền POSTGRES_PASSWORD, R2_*, ANTHROPIC_API_KEY, FRONTEND_URL...
+# Tạo file .env thật (điền POSTGRES_PASSWORD, R2_*, ANTHROPIC_API_KEY, FRONTEND_URL...)
+nano .env
 ```
 
-Sửa **`Caddyfile`**: đổi `your-domain.com` và `admin@your-domain.com` thành domain/email thật.
-Trỏ bản ghi DNS **A** của domain về IP VPS, mở port **80/443** trên firewall.
+> Nội dung `.env` xem mẫu trong [`.env.prod.example`](.env.prod.example). File này **chỉ nằm
+> trên VPS**, không commit và không bị Actions ghi đè.
 
-Khởi động lần đầu:
+Trỏ bản ghi DNS **A** của domain (`elearning.nhatranglands.vn`) về IP VPS, mở port **80/443** trên firewall.
+Domain/email trong [`Caddyfile`](Caddyfile) đã điền sẵn — Caddy tự xin chứng chỉ HTTPS Let's Encrypt.
 
+`docker-entrypoint.sh` (đã nằm trong image backend) tự chạy `prisma migrate deploy` mỗi lần backend khởi động.
+
+(Tùy chọn) seed dữ liệu mẫu sau khi stack đã chạy:
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml logs -f backend   # xem migrate + khởi động
-```
-
-`docker-entrypoint.sh` tự chạy `prisma migrate deploy` mỗi lần backend khởi động.
-Caddy tự xin chứng chỉ HTTPS Let's Encrypt cho domain.
-
-(Tùy chọn) seed dữ liệu mẫu:
-```bash
+cd /opt/elearning
 docker compose -f docker-compose.prod.yml exec backend npx ts-node prisma/seed.ts
 ```
 
@@ -74,26 +75,31 @@ docker compose -f docker-compose.prod.yml exec backend npx ts-node prisma/seed.t
 ## 4. CI/CD tự động (GitHub Actions)
 
 Workflow: [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) — mỗi khi push lên `main`:
-1. Job **ci**: build thử backend + frontend (chặn deploy nếu lỗi).
-2. Job **deploy**: SSH vào VPS → `git pull` → `docker compose ... up -d --build`.
+1. Job **build-and-push**: build image backend + frontend trên runner, push lên **GHCR**
+   (`ghcr.io/hoannk307/elearning-backend` và `...-frontend`, tag `latest` + commit SHA).
+2. Job **deploy**: `scp` `docker-compose.prod.yml` + `Caddyfile` lên VPS → SSH vào VPS →
+   `docker login ghcr.io` → `docker compose pull` → `up -d` (VPS chỉ kéo image, **không build**).
 
-Tạo **Repository Secrets** (GitHub → Settings → Secrets and variables → Actions):
+Đăng nhập GHCR ở bước deploy dùng `secrets.GITHUB_TOKEN` (tự động có sẵn, quyền `packages:write`
+được khai trong workflow), nên **không cần tạo PAT thủ công**.
+
+Chỉ cần **một Repository Secret** (GitHub → Settings → Secrets and variables → Actions):
 
 | Secret | Giá trị |
 |--------|---------|
-| `VPS_HOST` | IP hoặc domain VPS |
-| `VPS_USER` | user SSH (vd `ubuntu`) |
-| `VPS_SSH_KEY` | **private key** SSH (toàn bộ nội dung) |
-| `VPS_PORT` | (tùy chọn) port SSH nếu khác 22 |
+| `VPS_SSH_KEY` | **private key** SSH (toàn bộ nội dung) để Actions vào VPS |
+
+> `host`/`username`/`port` đang ghi thẳng trong workflow (`103.101.162.52` / `root` / `22`).
+> Muốn giấu thì chuyển lại thành `${{ secrets.VPS_HOST }}`, `${{ secrets.VPS_USER }}`, `${{ secrets.VPS_PORT }}`.
 
 Tạo SSH key cho Actions:
 ```bash
-ssh-keygen -t ed25519 -f deploy_key -N ""
-# Thêm deploy_key.pub vào ~/.ssh/authorized_keys trên VPS
+ssh-keygen -t rsa -b 4096 -m PEM -f deploy_key -N ""
+# Thêm deploy_key.pub vào ~/.ssh/authorized_keys trên VPS (user root)
 # Dán nội dung deploy_key (private) vào secret VPS_SSH_KEY
 ```
 
-Từ đó mỗi lần `git push origin main` là app tự cập nhật trên VPS.
+Từ đó mỗi lần `git push origin main` là app tự build → push image → cập nhật trên VPS.
 
 ---
 

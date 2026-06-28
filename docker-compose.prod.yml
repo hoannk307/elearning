@@ -35,8 +35,7 @@ services:
     # Không publish port 6379 — chỉ truy cập nội bộ.
 
   backend:
-    build:
-      context: ./backend
+    image: ghcr.io/hoannk307/elearning-backend:${IMAGE_TAG:-latest}
     container_name: kids-lms-backend
     restart: unless-stopped
     depends_on:
@@ -57,10 +56,7 @@ services:
     # Không publish — Caddy proxy nội bộ tới backend:3004.
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        BACKEND_INTERNAL_URL: http://backend:3004
+    image: ghcr.io/hoannk307/elearning-frontend:${IMAGE_TAG:-latest}
     container_name: kids-lms-frontend
     restart: unless-stopped
     depends_on:
