@@ -43,16 +43,24 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    env_file:
-      - .env
     environment:
       NODE_ENV: production
       PORT: 3004
       REDIS_HOST: redis
       REDIS_PORT: 6379
       # DATABASE_URL trỏ tới service postgres trong mạng Docker.
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kids_lms}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgresPassword}@postgres:5432/${POSTGRES_DB:-kids_lms}?schema=public
       FRONTEND_URL: ${FRONTEND_URL}
+      # --- Secret bơm từ GitHub Actions lúc deploy (KHÔNG lưu file .env trên VPS) ---
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AI_DEFAULT_MODEL: ${AI_DEFAULT_MODEL:-claude-sonnet-4-6}
+      APP_PIN: ${APP_PIN:-1234}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_BUCKET: ${R2_BUCKET}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
     # Không publish — Caddy proxy nội bộ tới backend:3004.
 
   frontend:
