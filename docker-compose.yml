@@ -4,7 +4,7 @@
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18
     container_name: kids-lms-postgres
     restart: unless-stopped
     environment:
