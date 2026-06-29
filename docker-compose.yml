@@ -14,7 +14,8 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # PG18+: mount thư mục cha; data nằm trong subdir theo version (vd /var/lib/postgresql/18/docker)
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d kids_lms"]
       interval: 10s
