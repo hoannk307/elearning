@@ -11,11 +11,12 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: QuangMinh@2018
       POSTGRES_DB: kids_lms
+      # PG18+: đặt data vào subdir để entrypoint tự tạo + chown đúng quyền (tránh lỗi Permission denied).
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
-      # PG18+: mount thư mục cha; data nằm trong subdir theo version (vd /var/lib/postgresql/18/docker)
-      - pgdata:/var/lib/postgresql
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d kids_lms"]
       interval: 10s

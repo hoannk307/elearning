@@ -11,9 +11,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgresPassword}
       POSTGRES_DB: ${POSTGRES_DB:-kids_lms}
+      # PG18+: đặt data vào subdir để entrypoint tự tạo + chown đúng quyền (tránh lỗi Permission denied).
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      # PG18+: mount thư mục cha; data nằm trong subdir theo version (vd /var/lib/postgresql/18/docker)
-      - pgdata:/var/lib/postgresql
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-kids_lms}"]
       interval: 10s
