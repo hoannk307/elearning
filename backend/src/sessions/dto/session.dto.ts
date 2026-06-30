@@ -21,6 +21,11 @@ export enum SessionStatusDto {
   DONE = 'DONE',
 }
 
+export class UpdateSessionStatusDto {
+  @IsEnum(SessionStatusDto)
+  status: SessionStatusDto;
+}
+
 export class UpdateSessionDto {
   @IsOptional()
   @IsString()

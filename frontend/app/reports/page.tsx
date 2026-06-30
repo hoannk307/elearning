@@ -105,9 +105,9 @@ function ReportsInner() {
 
           {/* Đánh giá AI */}
           <Card>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
               <h2 className="font-semibold">🤖 Đánh giá tổng hợp (AI)</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <ModelSelect models={models} value={model} onChange={setModel} disabled={assessing} />
                 <Button onClick={runAssessment} disabled={assessing}>
                   {assessing ? 'AI đang phân tích...' : 'Tạo đánh giá'}

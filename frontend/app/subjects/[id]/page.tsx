@@ -208,9 +208,9 @@ export default function SubjectPage() {
       </div>
 
       {/* Đề kiểm tra */}
-      <div className="flex items-center justify-between mt-8 mb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-8 mb-3">
         <h2 className="font-semibold">📝 Đề kiểm tra ({exams.length})</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ModelSelect
             models={models}
             value={examModel}
@@ -262,12 +262,15 @@ function SessionRow({
 }) {
   const [saving, setSaving] = useState(false);
 
-  async function patch(data: Record<string, unknown>) {
+  // Đổi trạng thái đã học — endpoint riêng cho cả phụ huynh lẫn học sinh.
+  async function toggleStatus() {
     setSaving(true);
     try {
-      await api<Session>(`/sessions/${session.id}`, {
+      await api<Session>(`/sessions/${session.id}/status`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          status: session.status === 'DONE' ? 'PENDING' : 'DONE',
+        }),
       });
       await onChanged();
     } finally {
@@ -302,17 +305,14 @@ function SessionRow({
           />
         </div>
 
-        {isParent && (
-          <Button
-            variant={session.status === 'DONE' ? 'ghost' : 'secondary'}
-            onClick={() =>
-              patch({ status: session.status === 'DONE' ? 'PENDING' : 'DONE' })
-            }
-            disabled={saving}
-          >
-            {session.status === 'DONE' ? '↩ Bỏ đánh dấu' : '✓ Đã học'}
-          </Button>
-        )}
+        <Button
+          variant={session.status === 'DONE' ? 'ghost' : 'secondary'}
+          onClick={toggleStatus}
+          disabled={saving}
+          className="shrink-0 whitespace-nowrap"
+        >
+          {session.status === 'DONE' ? '↩ Bỏ đánh dấu' : '✓ Đã học'}
+        </Button>
       </div>
     </Card>
   );

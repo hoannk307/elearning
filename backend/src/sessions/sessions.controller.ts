@@ -10,7 +10,11 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { SessionsService } from './sessions.service';
-import { CreateSessionVideoDto, UpdateSessionDto } from './dto/session.dto';
+import {
+  CreateSessionVideoDto,
+  UpdateSessionDto,
+  UpdateSessionStatusDto,
+} from './dto/session.dto';
 import { AccessService } from '../auth/access.service';
 import { CurrentUser, Roles } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
@@ -43,6 +47,20 @@ export class SessionsController {
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: UpdateSessionDto,
+  ) {
+    await this.access.assertSessionAccess(user, id);
+    return this.sessions.update(id, dto);
+  }
+
+  /**
+   * Đánh dấu đã học / chưa học. Cho phép cả PARENT và STUDENT
+   * (học sinh tự xác nhận đã học buổi nào). Chỉ đổi được trường status.
+   */
+  @Patch(':id/status')
+  async updateStatus(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateSessionStatusDto,
   ) {
     await this.access.assertSessionAccess(user, id);
     return this.sessions.update(id, dto);
