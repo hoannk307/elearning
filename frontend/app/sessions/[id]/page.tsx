@@ -7,6 +7,8 @@ import { api, openAuthedFile } from '@/lib/api';
 import {
   Exercise,
   ExerciseGradingResult,
+  ExerciseQuestion,
+  ExerciseResultItem,
   Session,
   SessionVideo,
 } from '@/lib/types';
@@ -127,48 +129,49 @@ export default function SessionPage() {
       <div className="space-y-3">
         {exercises.map((ex) => (
           <Card key={ex.id}>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{ex.title ?? 'Bài tập'}</span>
-                  <Badge status={ex.status} />
-                </div>
-
-                {ex.status === 'GENERATING' && (
-                  <p className="text-sm text-slate-400 mt-1">AI đang tạo câu hỏi...</p>
-                )}
-                {ex.status === 'FAILED' && (
-                  <p className="text-sm text-danger mt-1">Lỗi: {ex.error}</p>
-                )}
-
-                {/* Phụ huynh: xem trước câu hỏi + nhập điểm tay */}
-                {ex.status === 'READY' && isParent && (
-                  <>
-                    {ex.contentJson?.questions && (
-                      <ol className="mt-2 ml-4 list-decimal text-sm text-slate-600 space-y-1">
-                        {ex.contentJson.questions.slice(0, 8).map((q, i) => (
-                          <li key={i}>
-                            <span className="text-xs text-secondary mr-1">
-                              [{TYPE_LABEL[q.type] ?? q.type}]
-                            </span>
-                            {q.question}
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                    <ScoreInput exercise={ex} onSaved={loadExercises} />
-                  </>
-                )}
-
-                {/* Học sinh: làm bài trực tiếp trên máy */}
-                {ex.status === 'READY' && !isParent && (
-                  <StudentWorksheet exercise={ex} model={model} onGraded={loadExercises} />
-                )}
+            {/* Header: title + nút quản lý bài tập */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">{ex.title ?? 'Bài tập'}</span>
+                <Badge status={ex.status} />
               </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="ghost" onClick={() => regenerate(ex.id)}>
+                  ↻ Tạo lại
+                </Button>
+                <Button variant="ghost" onClick={() => remove(ex.id)}>
+                  Xoá
+                </Button>
+              </div>
+            </div>
 
-              <div className="flex flex-col gap-2 shrink-0">
-                {ex.status === 'READY' && isParent && (
-                  <>
+            {/* Nội dung bài tập */}
+            <div className="mt-2">
+              {ex.status === 'GENERATING' && (
+                <p className="text-sm text-slate-400 mt-1">AI đang tạo câu hỏi...</p>
+              )}
+              {ex.status === 'FAILED' && (
+                <p className="text-sm text-danger mt-1">Lỗi: {ex.error}</p>
+              )}
+
+              {/* Phụ huynh: xem trước câu hỏi + bài làm của học sinh + nhập điểm tay */}
+              {ex.status === 'READY' && isParent && (
+                <>
+                  {ex.contentJson?.questions && (
+                    <ol className="mt-2 ml-4 list-decimal text-sm text-slate-600 space-y-1">
+                      {ex.contentJson.questions.slice(0, 8).map((q, i) => (
+                        <li key={i}>
+                          <span className="text-xs text-secondary mr-1">
+                            [{TYPE_LABEL[q.type] ?? q.type}]
+                          </span>
+                          {q.question}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  <ResultsReview exercise={ex} />
+                  <ScoreInput exercise={ex} onSaved={loadExercises} />
+                  <div className="mt-3 flex gap-2">
                     <Button
                       variant="secondary"
                       onClick={() => openAuthedFile(`/exercises/${ex.id}/pdf`)}
@@ -181,15 +184,14 @@ export default function SessionPage() {
                     >
                       Đáp án
                     </Button>
-                  </>
-                )}
-                <Button variant="ghost" onClick={() => regenerate(ex.id)}>
-                  ↻ Tạo lại
-                </Button>
-                <Button variant="ghost" onClick={() => remove(ex.id)}>
-                  Xoá
-                </Button>
-              </div>
+                  </div>
+                </>
+              )}
+
+              {/* Học sinh: làm bài trực tiếp trên máy */}
+              {ex.status === 'READY' && !isParent && (
+                <StudentWorksheet exercise={ex} model={model} onGraded={loadExercises} />
+              )}
             </div>
           </Card>
         ))}
@@ -247,6 +249,126 @@ function ScoreInput({
         <span className="text-xs text-success">
           Điểm gần nhất: {latest.score}/{latest.maxScore}
         </span>
+      )}
+    </div>
+  );
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  STUDENT_AI: '🤖 AI chấm (bé tự làm trên máy)',
+  PARENT_MANUAL: '✍️ Phụ huynh nhập tay',
+};
+
+/**
+ * Xem lại các lần đã làm bài tập: điểm, đáp án đã gõ và nhận xét từng câu
+ * (khi làm trên máy & AI chấm). Dùng chung cho cả phụ huynh lẫn học sinh.
+ */
+function ResultsReview({
+  exercise,
+  selfView = false,
+}: {
+  exercise: Exercise;
+  /** true khi chính học sinh xem lại bài của mình (đổi cách xưng hô). */
+  selfView?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const results = exercise.results ?? [];
+  const questions = exercise.contentJson?.questions ?? [];
+
+  if (results.length === 0) {
+    return (
+      <p className="mt-3 text-sm text-slate-400">
+        {selfView ? 'Bạn chưa làm bài này lần nào.' : 'Học sinh chưa làm bài này lần nào.'}
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="text-sm font-medium text-primary"
+      >
+        {open ? '▾' : '▸'}{' '}
+        {selfView ? 'Xem lại bài đã làm' : 'Bài làm của học sinh'} ({results.length} lần)
+      </button>
+      {open && (
+        <div className="mt-2 space-y-3">
+          {results.map((r) => (
+            <ResultDetail key={r.id} result={r} questions={questions} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Chi tiết một lần làm bài: điểm tổng, nhận xét AI và từng câu. */
+function ResultDetail({
+  result,
+  questions,
+}: {
+  result: ExerciseResultItem;
+  questions: ExerciseQuestion[];
+}) {
+  const items = result.detailJson?.items ?? [];
+  const answers = result.answersJson ?? [];
+  // Có bài làm chi tiết (bé làm trên máy) hay chỉ là điểm nhập tay?
+  const hasWork = answers.length > 0 || items.length > 0;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-background/60 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold">
+          Điểm:{' '}
+          <span className="text-primary">
+            {result.score}/{result.maxScore}
+          </span>
+        </div>
+        <div className="text-xs text-slate-400">
+          {new Date(result.gradedAt).toLocaleString('vi-VN')}
+        </div>
+      </div>
+      <div className="text-xs text-secondary mt-0.5">
+        {SOURCE_LABEL[result.source ?? ''] ?? SOURCE_LABEL.PARENT_MANUAL}
+      </div>
+
+      {result.aiFeedback && (
+        <p className="mt-2 text-sm text-slate-700">💬 {result.aiFeedback}</p>
+      )}
+      {result.note && (
+        <p className="mt-1 text-sm text-slate-600">📝 {result.note}</p>
+      )}
+
+      {hasWork && (
+        <ol className="mt-3 ml-4 list-decimal space-y-2 text-sm">
+          {questions.map((q, i) => {
+            // detailJson dùng index bắt đầu từ 1.
+            const item = items.find((it) => it.index === i + 1) ?? items[i];
+            const answer = answers[i];
+            return (
+              <li key={i}>
+                <div className="text-slate-700">{q.question}</div>
+                <div className="text-slate-500">
+                  Trả lời:{' '}
+                  <span className="font-medium text-slate-700">
+                    {answer && answer.trim() !== '' ? answer : '— (bỏ trống)'}
+                  </span>
+                </div>
+                {item && (
+                  <div
+                    className={
+                      item.correct === false ? 'text-danger' : 'text-success'
+                    }
+                  >
+                    {item.awarded}/{item.max} điểm
+                    {item.comment ? ` — ${item.comment}` : ''}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
       )}
     </div>
   );
@@ -321,6 +443,14 @@ function StudentWorksheet({
           Lần làm gần nhất: {latest.score}/{latest.maxScore} điểm
         </p>
       )}
+
+      {/* Xem lại các lần đã làm trước đây (đáp án + nhận xét từng câu). */}
+      <ResultsReview exercise={exercise} selfView />
+
+      <p className="text-sm font-medium text-slate-600 pt-1 border-t border-slate-100">
+        ✍️ Làm bài mới:
+      </p>
+
       {questions.map((q, i) => (
         <div key={i}>
           <div className="text-sm font-medium text-slate-700">
