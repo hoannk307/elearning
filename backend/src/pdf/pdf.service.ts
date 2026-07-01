@@ -47,6 +47,8 @@ export class PdfService implements OnModuleDestroy {
     const page = await browser.newPage();
     try {
       await page.setContent(html, { waitUntil: 'load' });
+      // Đảm bảo các font (kể cả font tiếng Việt) đã nạp xong trước khi in.
+      await page.evaluateHandle('document.fonts.ready');
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,

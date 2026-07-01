@@ -27,7 +27,8 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 # Chromium + thư viện cần thiết cho Puppeteer (render PDF).
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-     chromium fonts-liberation libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+     chromium fonts-liberation fonts-noto-core fonts-dejavu-core \
+     libnss3 libatk1.0-0 libatk-bridge2.0-0 \
      libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 \
      libgbm1 libasound2 libpango-1.0-0 libcairo2 ca-certificates \
   && rm -rf /var/lib/apt/lists/*

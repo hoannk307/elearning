@@ -10,7 +10,7 @@ export function esc(s: unknown): string {
 export const BASE_CSS = `
   * { box-sizing: border-box; }
   body {
-    font-family: 'Segoe UI', 'Nunito', Arial, sans-serif;
+    font-family: 'Segoe UI', 'Noto Sans', 'DejaVu Sans', 'Liberation Sans', Arial, sans-serif;
     color: #1f2a37; font-size: 13px; line-height: 1.5; margin: 0;
   }
   .header {
